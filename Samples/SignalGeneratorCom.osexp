@@ -1,0 +1,225 @@
+---
+API: 2.1
+OpenSesame: 3.3.10
+Platform: nt
+---
+set width 1024
+set uniform_coordinates yes
+set title DS5_signal_generator_communication
+set subject_parity even
+set subject_nr 0
+set start experiment
+set sound_sample_size -16
+set sound_freq 48000
+set sound_channels 2
+set sound_buf_size 1024
+set sampler_backend psycho
+set round_decimals 2
+set mouse_backend psycho
+set keyboard_backend psycho
+set height 768
+set fullscreen no
+set form_clicks no
+set foreground white
+set font_underline no
+set font_size 18
+set font_italic no
+set font_family mono
+set font_bold no
+set experiment_path "\\\\vuw\\Public\\departments\\FSW\\FAC\\SOLO\\Lab-support\\004 Fabrikanten\\Universiteit Leiden\\Ds5SignalGenerator\\Samples"
+set disable_garbage_collection yes
+set description "The main experiment item"
+set coordinates uniform
+set compensation 0
+set color_backend psycho
+set clock_backend psycho
+set canvas_backend psycho
+set background black
+
+define sketchpad Goodbye
+	set duration keypress
+	set description "Displays stimuli"
+	draw textline center=1 color=white font_bold=no font_family=mono font_italic=no font_size=18 html=yes show_if=always text="Press any key to end" x=0 y=0 z_index=0
+
+define sketchpad Welcome
+	set duration keypress
+	set description "Displays stimuli"
+	draw textline center=1 color=white font_bold=no font_family=mono font_italic=no font_size=18 html=yes show_if=always text="DS5 signal generator sample task<br /><br />press any key to continue" x=0 y=0 z_index=0
+
+define inline_script close_DS5
+	set description "Executes Python code"
+	___run__
+	# This inline should be located at the end of the task.
+	
+	# Close serial device.
+	signalGenerator.close_serial_device(signal_generator)
+	__end__
+	set _prepare ""
+
+define sequence experiment
+	set flush_keyboard yes
+	set description "Runs a number of items in sequence"
+	run Welcome always
+	run init_DS5 always
+	run show_port always
+	run trial_loop always
+	run close_DS5 always
+	run Goodbye always
+
+define inline_script init_DS5
+	set description "Executes Python code"
+	set _run ""
+	___prepare__
+	# This inline should be located at the start of the task
+	
+	# Set path to where the current task and python module (signalGenerator.py) are located:
+	import os
+	os.chdir("C:/ExperimentData/OpenSesame/DS5_SignalGenerator/")
+	
+	# Import module with signal generator communication functions, which is located in the path mentioned above
+	import signalGenerator
+	
+	# Get the COM port number. 
+	# This function automatically searches for the COM port to which the signal generator is connected. When no signal generator is connected, or more than one signal generator is connected, it will automatically use the FAKECOM port. This is a fake port with which it is possible to communicate with a fake signal generator. This is for testing purposes when no signal generator is connected. When the signal generator is correctly connected to the computer, but still the FAKECOM is used, try unplugging and replugging the signal generator in the computer.
+	
+	# NOTE: the function below does not have to be used. The COM port can also be found in the Device Manager. E.g. var.com_port = 'COM4'. In this case the signal generator should always be connected to the same computer and to the same USB port.
+	var.com_port = signalGenerator.get_com_port()
+	
+	# Initialize the COM (serial) port. This should be done once at the beginning of the task.
+	signal_generator = signalGenerator.init_serial_port(var.com_port)
+	
+	# The signal_generator should be a serial device. When it is of type string, it contains an error message and the Fake signal generator should be used.
+	if type(signal_generator) == str:
+	    var.com_port = "FAKECOM"
+	    print('ERROR, could not open signal generator. Using Fake signal generator.')
+	    
+	__end__
+
+define logger logger
+	set description "Logs experimental data"
+	set auto_log yes
+
+define sketchpad send_pulse_stim
+	set duration 0
+	set description "Displays stimuli"
+	draw textline center=1 color=white font_bold=no font_family=mono font_italic=no font_size=18 html=yes show_if=always text="Sending pulse<br />current: [current] mA<br />ton: [ton] ms<br />toff: [toff] ms<br />repeat: [repeat] times" x=0 y=0 z_index=0
+
+define inline_script send_pulse_to_DS5
+	set description "Executes Python code"
+	___run__
+	# Send a pulse (see signal generator documentation for more information)
+	pulse_data = signalGenerator.send_pulse_train(signal_generator, current=var.current, ton=var.ton, toff=var.toff, repeat=var.repeat)
+	
+	# Wait a bit
+	clock.sleep(1000)
+	
+	# Get data: pulse_data is a dictionary with the data from the signal generator (see signal generator documentation for more info).
+	
+	# When pulse_data is a string, it contains an error message and communication with the signal generator and the DS5 went wrong. No pulse was sent.
+	if type(pulse_data) == str:
+	    print(pulse_data)
+	
+	else:
+	
+	# When the pulse_data contains a key Error#, communication with the signal          generator and DS5 was good, but one of the values that were sent to the DS5 did not meet the requirements. See the signal generator documentation for more information.
+	    if 'Error#' in pulse_data.keys():
+	        print('Received error from DS5: ' + pulse_data['Error'])
+	        var.error = pulse_data['Error']
+	    else:
+	        
+	        # Getting signal generator information
+	        print('Firmware version: ' + pulse_data['Ver'])
+	        print('Serial number: ' + pulse_data['Serial'])
+	        print('Number of samples: ' + str(pulse_data['samples']))
+	        
+	        var.firmware_version  = pulse_data['Ver']
+	        var.serial_number     = pulse_data['Serial']
+	        var.number_of_samples = pulse_data['samples']
+	
+	    # Getting pulse data and saving it. See the signal generator documentation for more information.
+	    if 'current' in pulse_data.keys():
+	         print('Measured current: ' + str(pulse_data['current']))
+	         var.measured_current = pulse_data['current']
+	
+	    if 'voltage' in pulse_data.keys():
+	        print('Measured voltage: ' + str(pulse_data['voltage']))
+	        var.measured_voltage = pulse_data['voltage']
+	
+	    if 'MaxCurrent' in pulse_data.keys():
+	        print('Measured Max current: ' + str(pulse_data['MaxCurrent']))
+	        var.measured_max_current = pulse_data['MaxCurrent']
+	
+	    if 'MinCurrent' in pulse_data.keys():
+	        print('Measured Min current: ' + str(pulse_data['MinCurrent']))
+	        var.measured_min_current = pulse_data['MinCurrent']
+	
+	    if 'MaxVolt' in pulse_data.keys():
+	        print('Measured Max volt: ' + str(pulse_data['MaxVolt']))
+	        var.measured_max_volt = pulse_data['MaxVolt']
+	
+	    if 'MinVolt' in pulse_data.keys():
+	         print('Measured Min volt: ' + str(pulse_data['MinVolt']))
+	         var.measured_min_volt = pulse_data['MinVolt']
+	__end__
+	set _prepare ""
+
+define sketchpad show_port
+	set duration 2000
+	set description "Displays stimuli"
+	draw textline center=1 color=white font_bold=no font_family=mono font_italic=no font_size=18 html=yes show_if=always text="Using signal generator on port address: [com_port]" x=0 y=0 z_index=0
+
+define loop trial_loop
+	set source_file ""
+	set source table
+	set repeat 1
+	set order sequential
+	set description "Repeatedly runs another item"
+	set cycles 9
+	set continuous no
+	set break_if_on_first yes
+	set break_if never
+	setcycle 0 current 0
+	setcycle 0 ton 10
+	setcycle 0 toff 10
+	setcycle 0 repeat 200
+	setcycle 1 current 1
+	setcycle 1 ton 10
+	setcycle 1 toff 10
+	setcycle 1 repeat 200
+	setcycle 2 current 2
+	setcycle 2 ton 10
+	setcycle 2 toff 10
+	setcycle 2 repeat 200
+	setcycle 3 current 3
+	setcycle 3 ton 10
+	setcycle 3 toff 10
+	setcycle 3 repeat 200
+	setcycle 4 current 4
+	setcycle 4 ton 10
+	setcycle 4 toff 10
+	setcycle 4 repeat 200
+	setcycle 5 current 5
+	setcycle 5 ton 10
+	setcycle 5 toff 10
+	setcycle 5 repeat 200
+	setcycle 6 current 6
+	setcycle 6 ton 10
+	setcycle 6 toff 10
+	setcycle 6 repeat 200
+	setcycle 7 current 7
+	setcycle 7 ton 10
+	setcycle 7 toff 10
+	setcycle 7 repeat 200
+	setcycle 8 current 8
+	setcycle 8 ton 10
+	setcycle 8 toff 10
+	setcycle 8 repeat 200
+	run trial_sequence
+
+define sequence trial_sequence
+	set flush_keyboard yes
+	set description "Runs a number of items in sequence"
+	run send_pulse_stim always
+	run send_pulse_to_DS5 always
+	run logger always
+
