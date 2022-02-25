@@ -26,7 +26,7 @@ set font_size 18
 set font_italic no
 set font_family mono
 set font_bold no
-set experiment_path "\\\\vuw\\Public\\departments\\FSW\\FAC\\SOLO\\Lab-support\\004 Fabrikanten\\Universiteit Leiden\\Ds5SignalGenerator\\Samples"
+set experiment_path "E:\\ExperimentData\\repos\\digitimer_stimulator_communication\\Samples"
 set disable_garbage_collection yes
 set description "The main experiment item"
 set coordinates uniform
@@ -52,7 +52,7 @@ define inline_script close_DS5
 	# This inline should be located at the end of the task.
 	
 	# Close serial device.
-	signalGenerator.close_serial_device(signal_generator)
+	init_and_close_serial_device.close_serial_device(sig_gen)
 	__end__
 	set _prepare ""
 
@@ -72,25 +72,28 @@ define inline_script init_DS5
 	___prepare__
 	# This inline should be located at the start of the task
 	
-	# Set path to where the current task and python module (signalGenerator.py) are located:
+	# Set path to where the current task and python modules are located:
 	import os
-	os.chdir("C:/ExperimentData/OpenSesame/DS5_SignalGenerator/")
+	os.chdir("E:/ExperimentData/01 - Lopende projecten/DS5 communication")
 	
-	# Import module with signal generator communication functions, which is located in the path mentioned above
-	import signalGenerator
+	# Import modules which are located in the path mentioned above
+	import get_com_port
+	import init_and_close_serial_device
+	import signal_generator
 	
-	# Get the COM port number. 
-	# This function automatically searches for the COM port to which the signal generator is connected. When no signal generator is connected, or more than one signal generator is connected, it will automatically use the FAKECOM port. This is a fake port with which it is possible to communicate with a fake signal generator. This is for testing purposes when no signal generator is connected. When the signal generator is correctly connected to the computer, but still the FAKECOM is used, try unplugging and replugging the signal generator in the computer.
 	
+	# Get the com port. 
+	# This function automatically searches for the COM port to which the signal generator is connected.
 	# NOTE: the function below does not have to be used. The COM port can also be found in the Device Manager. E.g. var.com_port = 'COM4'. In this case the signal generator should always be connected to the same computer and to the same USB port.
-	var.com_port = signalGenerator.get_com_port()
+	var.com_port_siggen = get_com_port.get_port('SignalGenerator')
+	print('com_port_siggen: ' + str(var.com_port_siggen))
 	
-	# Initialize the COM (serial) port. This should be done once at the beginning of the task.
-	signal_generator = signalGenerator.init_serial_port(var.com_port)
+	# Initialize serial port. This should be done once at the beginning of the task.
+	sig_gen = init_and_close_serial_device.init_serial_device(var.com_port_siggen)
 	
 	# The signal_generator should be a serial device. When it is of type string, it contains an error message and the Fake signal generator should be used.
 	if type(signal_generator) == str:
-	    var.com_port = "FAKECOM"
+	    var.com_port_siggen = "FAKECOM"
 	    print('ERROR, could not open signal generator. Using Fake signal generator.')
 	    
 	__end__
@@ -108,7 +111,7 @@ define inline_script send_pulse_to_DS5
 	set description "Executes Python code"
 	___run__
 	# Send a pulse (see signal generator documentation for more information)
-	pulse_data = signalGenerator.send_pulse_train(signal_generator, current=var.current, ton=var.ton, toff=var.toff, repeat=var.repeat)
+	pulse_data = signal_generator.send_pulse_train(sig_gen, current=var.current, ton=var.ton, toff=var.toff, repeat=var.repeat)
 	
 	# Wait a bit
 	clock.sleep(1000)
@@ -166,7 +169,7 @@ define inline_script send_pulse_to_DS5
 define sketchpad show_port
 	set duration 2000
 	set description "Displays stimuli"
-	draw textline center=1 color=white font_bold=no font_family=mono font_italic=no font_size=18 html=yes show_if=always text="Using signal generator on port address: [com_port]" x=0 y=0 z_index=0
+	draw textline center=1 color=white font_bold=no font_family=mono font_italic=no font_size=18 html=yes show_if=always text="Using signal generator on port address: [com_port_siggen]" x=0 y=0 z_index=0
 
 define loop trial_loop
 	set source_file ""
